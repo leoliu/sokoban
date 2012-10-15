@@ -714,6 +714,14 @@ static char * player_xpm[] = {
 
 (put 'sokoban-mode 'mode-class 'special)
 
+(unless (featurep 'xemacs)
+  (easy-menu-define sokoban-popup-menu nil "Popup menu for Sokoban mode."
+    '("Sokoban Commands"
+      ["Restart this level" sokoban-restart-level]
+      ["Start new game" sokoban-start-game]
+      ["Go to specific level" sokoban-goto-level]))
+  (define-key sokoban-mode-map [down-mouse-3] sokoban-popup-menu))
+
 (defun sokoban-mode ()
   "A mode for playing Sokoban.
 
@@ -727,11 +735,12 @@ sokoban-mode keybindings:
   (setq major-mode 'sokoban-mode)
   (setq mode-name "Sokoban")
 
-  (setq mode-popup-menu
-	'("Sokoban Commands"
-	  ["Restart this level"		sokoban-restart-level]
-	  ["Start new game"		sokoban-start-game]
-	  ["Go to specific level"	sokoban-goto-level]))
+  (when (featurep 'xemacs)
+    (setq mode-popup-menu
+          '("Sokoban Commands"
+            ["Restart this level" sokoban-restart-level]
+            ["Start new game" sokoban-start-game]
+            ["Go to specific level" sokoban-goto-level])))
 
   (setq gamegrid-use-glyphs sokoban-use-glyphs)
   (setq gamegrid-use-color sokoban-use-color)
