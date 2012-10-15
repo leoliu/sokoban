@@ -73,7 +73,7 @@
 (defvar sokoban-level-file
   (if (fboundp 'locate-data-file)
       (locate-data-file "sokoban.levels")
-    (concat data-directory "sokoban.levels")))
+    (expand-file-name "sokoban.levels" data-directory)))
 
 (defvar sokoban-width 20)
 (defvar sokoban-height 16)
@@ -776,6 +776,14 @@ sokoban-mode keybindings:
   (gamegrid-kill-timer)
   (sokoban-mode)
   (sokoban-start-game))
+
+;;;###autoload
+(unless (featurep 'xemacs)
+  (define-key-after			; install a menu entry
+    (lookup-key global-map [menu-bar tools games])
+    [sokoban]
+    '(menu-item "Sokoban" sokoban)
+    'snake))
 
 (provide 'sokoban)
 
