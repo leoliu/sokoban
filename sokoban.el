@@ -611,15 +611,28 @@ static char * player_xpm[] = {
 			   (sit-for 3)
 			   (sokoban-next-level))))))))))
 
+(defun sokoban-event-x (event)
+  (let ((x (gamegrid-event-x event)))
+    (if (featurep 'xemacs)
+        x
+      ;; 32.0 is the pixel width of the xpm image
+      (floor x (/ 32.0 (frame-char-width))))))
+
+(defun sokoban-event-y (event)
+  (let ((y (gamegrid-event-y event)))
+    (if (featurep 'xemacs)
+        y
+      (floor y (/ 32.0 (frame-char-height))))))
+
 (defun sokoban-mouse-event-start (event)
   (interactive "e")
-  (setq sokoban-mouse-x (gamegrid-event-x event))
-  (setq sokoban-mouse-y (gamegrid-event-y event)))
+  (setq sokoban-mouse-x (sokoban-event-x event))
+  (setq sokoban-mouse-y (sokoban-event-y event)))
 
 (defun sokoban-mouse-event-end (event)
   (interactive "e")
-  (let* ((x (gamegrid-event-x event))
-	 (y (gamegrid-event-y event))
+  (let* ((x (sokoban-event-x event))
+	 (y (sokoban-event-y event))
 	 (dx (- x sokoban-x))
 	 (dy (- y sokoban-y)))
     (cond
