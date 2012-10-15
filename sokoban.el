@@ -388,29 +388,29 @@ static char * player_xpm[] = {
 ;; ;;;;;;;;;;;;; keymaps ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defvar sokoban-mode-map
-  (make-sparse-keymap 'sokoban-mode-map))
+  (let ((map (make-sparse-keymap
+	      (when (featurep 'xemacs) 'sokoban-mode-map))))
+    (define-key map "n"	'sokoban-start-game)
+    (define-key map "r"	'sokoban-restart-level)
+    (define-key map "g"	'sokoban-goto-level)
 
-(define-key sokoban-mode-map "n"	'sokoban-start-game)
-(define-key sokoban-mode-map "r"	'sokoban-restart-level)
-(define-key sokoban-mode-map "g"	'sokoban-goto-level)
+    (define-key map [left]	'sokoban-move-left)
+    (define-key map [right]	'sokoban-move-right)
+    (define-key map [up]	'sokoban-move-up)
+    (define-key map [down]	'sokoban-move-down)
 
-(define-key sokoban-mode-map [left]	'sokoban-move-left)
-(define-key sokoban-mode-map [right]	'sokoban-move-right)
-(define-key sokoban-mode-map [up]	'sokoban-move-up)
-(define-key sokoban-mode-map [down]	'sokoban-move-down)
+    (when (featurep 'xemacs)
+      (define-key map [button2]	  'sokoban-mouse-event-start)
+      (define-key map [button2up] 'sokoban-mouse-event-end))
 
-(define-key sokoban-mode-map [button2]	'sokoban-mouse-event-start)
-(define-key sokoban-mode-map [button2up] 'sokoban-mouse-event-end)
+    (define-key map [down-mouse-2] 'sokoban-mouse-event-start)
+    (define-key map [mouse-2]      'sokoban-mouse-event-end)
+    ;; On some systems (OS X) middle mouse is difficult
+    (define-key map [down-mouse-1] 'sokoban-mouse-event-start)
+    (define-key map [mouse-1]      'sokoban-mouse-event-end)
 
-(define-key sokoban-mode-map [down-mouse-2]	'sokoban-mouse-event-start)
-(define-key sokoban-mode-map [mouse-2] 'sokoban-mouse-event-end)
-
-(define-key sokoban-mode-map [(control ?/)]	'sokoban-undo)
-
-(defvar sokoban-null-map
-  (make-sparse-keymap 'sokoban-null-map))
-
-(define-key sokoban-null-map "n"	'sokoban-start-game)
+    (define-key map [(control ?/)]	'sokoban-undo)    
+    map))
 
 ;; ;;;;;;;;;;;;;;;; level file parsing functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
