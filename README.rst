@@ -2,6 +2,8 @@
  Sokoban for GNU Emacs ported from XEmacs
 ==========================================
 
+This package is part of `GNU ELPA <http://elpa.gnu.org>`_.
+
 Tested in GNU Emacs 23.4 and 24.2.
 
 .. figure:: http://i.imgur.com/i4oTB.png

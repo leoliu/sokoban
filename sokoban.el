@@ -1,4 +1,4 @@
-;;; sokoban.el -- Implementation of Sokoban for Emacs.
+;;; sokoban.el --- Implementation of Sokoban for Emacs.
 
 ;; Copyright (C) 1998 Free Software Foundation, Inc.
 
@@ -73,7 +73,8 @@
 (defvar sokoban-level-file
   (if (fboundp 'locate-data-file)
       (locate-data-file "sokoban.levels")
-    (expand-file-name "sokoban.levels" data-directory)))
+    (or (locate-library "sokoban.levels")
+	(expand-file-name "sokoban.levels" data-directory))))
 
 (defvar sokoban-width 20)
 (defvar sokoban-height 16)
