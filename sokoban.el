@@ -1,6 +1,6 @@
 ;;; sokoban.el --- Implementation of Sokoban for Emacs.
 
-;; Copyright (C) 1998 Free Software Foundation, Inc.
+;; Copyright (C) 1998, 2013 Free Software Foundation, Inc.
 
 ;; Author: Glynn Clements <glynn.clements@virgin.net>
 ;; Version: 1.04
@@ -11,7 +11,7 @@
 
 ;; XEmacs is free software; you can redistribute it and/or modify it
 ;; under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2 of the License, or
+;; the Free Software Foundation; either version 3 of the License, or
 ;; (at your option) any later version.
 
 ;; XEmacs is distributed in the hope that it will be useful, but
@@ -39,7 +39,6 @@
 ;;   display level and score in modeline
 ;; Modified: 1998-06-04, added `undo' feature
 ;;   added number of blocks done/total to score and modeline
-;; Modified: 1998-06-23, copyright assigned to FSF
 ;; Modified: 2003-06-14, update email address, remove URL
 
 ;; Tested with XEmacs 20.3/4/5 and Emacs 19.34
@@ -50,6 +49,8 @@
 ;; The levels and some of the pixmaps were
 ;; taken directly from XSokoban
 
+;;; Code:
+
 (eval-when-compile
   (require 'cl))
 
@@ -58,13 +59,13 @@
 ;; ;;;;;;;;;;;;; customization variables ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defvar sokoban-use-glyphs t
-  "Non-nil means use glyphs when available")
+  "Non-nil means use glyphs when available.")
 
 (defvar sokoban-use-color t
-  "Non-nil means use color when available")
+  "Non-nil means use color when available.")
 
 (defvar sokoban-font "-*-courier-medium-r-*-*-*-200-100-75-*-*-iso8859-*"
-  "Name of the font used in X mode")
+  "Name of the font used in X mode.")
 
 (defvar sokoban-buffer-name "*Sokoban*")
 
@@ -74,6 +75,11 @@
   (if (fboundp 'locate-data-file)
       (locate-data-file "sokoban.levels")
     (or (locate-library "sokoban.levels")
+            (let ((file (expand-file-name
+                         "sokoban.levels"
+                         (if load-file-name
+                             (file-name-directory load-file-name)))))
+              (and (file-exists-p file) file))
 	(expand-file-name "sokoban.levels" data-directory))))
 
 (defvar sokoban-width 20)
@@ -363,27 +369,26 @@ static char * player_xpm[] = {
 ;; ;;;;;;;;;;;;; variables ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defvar sokoban-level 0)
-(defvar sokoban-level-map nil)
-(defvar sokoban-targets 0)
-(defvar sokoban-x 0)
-(defvar sokoban-y 0)
-(defvar sokoban-moves 0)
-(defvar sokoban-pushes 0)
-(defvar sokoban-done 0)
-(defvar sokoban-mouse-x 0)
-(defvar sokoban-mouse-y 0)
-(defvar sokoban-undo-list nil)
-
 (make-variable-buffer-local 'sokoban-level)
+(defvar sokoban-level-map nil)
 (make-variable-buffer-local 'sokoban-level-map)
+(defvar sokoban-targets 0)
 (make-variable-buffer-local 'sokoban-targets)
+(defvar sokoban-x 0)
 (make-variable-buffer-local 'sokoban-x)
+(defvar sokoban-y 0)
 (make-variable-buffer-local 'sokoban-y)
+(defvar sokoban-moves 0)
 (make-variable-buffer-local 'sokoban-moves)
+(defvar sokoban-pushes 0)
 (make-variable-buffer-local 'sokoban-pushes)
+(defvar sokoban-done 0)
 (make-variable-buffer-local 'sokoban-done)
+(defvar sokoban-mouse-x 0)
 (make-variable-buffer-local 'sokoban-mouse-x)
+(defvar sokoban-mouse-y 0)
 (make-variable-buffer-local 'sokoban-mouse-y)
+(defvar sokoban-undo-list nil)
 (make-variable-buffer-local 'sokoban-undo-list)
 
 ;; ;;;;;;;;;;;;; keymaps ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -406,11 +411,12 @@ static char * player_xpm[] = {
 
     (define-key map [down-mouse-2] 'sokoban-mouse-event-start)
     (define-key map [mouse-2]      'sokoban-mouse-event-end)
-    ;; On some systems (OS X) middle mouse is difficult
+    ;; On some systems (OS X) middle mouse is difficult.
+    ;; FIXME: Use follow-link?
     (define-key map [down-mouse-1] 'sokoban-mouse-event-start)
     (define-key map [mouse-1]      'sokoban-mouse-event-end)
 
-    (define-key map [(control ?/)]	'sokoban-undo)    
+    (define-key map [(control ?/)]	'sokoban-undo)
     map))
 
 ;; ;;;;;;;;;;;;;;;; level file parsing functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -421,39 +427,36 @@ static char * player_xpm[] = {
 
 (defun sokoban-init-level-data ()
   (setq sokoban-level-data nil)
-  (save-excursion
-    (find-file-read-only sokoban-level-file)
+  (with-current-buffer (find-file-noselect sokoban-level-file)
+    (read-only-mode 1)
     (goto-char (point-min))
     (re-search-forward sokoban-level-regexp nil t)
     (forward-char)
-    (while (not (eq (point) (point-max)))
+    (while (not (eobp))
       (while (looking-at sokoban-comment-regexp)
 	(forward-line))
       (let ((data (make-vector sokoban-height nil))
-	    (fmt (format "%%-%ds" sokoban-width))
-	    start end)
-	(loop for y from 0 to (1- sokoban-height) do
-	  (cond ((or (eq (point) (point-max))
+	    (fmt (format "%%-%ds" sokoban-width)))
+	(dotimes (y sokoban-height)
+	  (cond ((or (eobp)
 		     (looking-at sokoban-comment-regexp))
 		 (aset data y (format fmt "")))
 		(t
-		 (setq start (point))
-		 (end-of-line)
-		 (setq end (point))
-		 (aset data
-		       y
-		       (format fmt (buffer-substring start end)))
-		 (forward-char))))
-	(setq sokoban-level-data
-	      (cons data sokoban-level-data))))
+		 (let ((start (point))
+                       (end (line-end-position)))
+                   (aset data
+                         y
+                         (format fmt (buffer-substring start end)))
+                   (goto-char (1+ end))))))
+	(push data sokoban-level-data)))
     (kill-buffer (current-buffer))
-    (setq sokoban-level-data (reverse sokoban-level-data))))
+    (setq sokoban-level-data (nreverse sokoban-level-data))))
 
 ;; ;;;;;;;;;;;;;;;; game functions ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defun sokoban-display-options ()
   (let ((options (make-vector 256 nil)))
-    (loop for c from 0 to 255 do
+    (dotimes (c 256)
       (aset options c
 	    (cond ((= c sokoban-floor)
 		   sokoban-floor-options)
@@ -472,8 +475,8 @@ static char * player_xpm[] = {
 (defun sokoban-get-level-data ()
   (setq sokoban-level-map (nth (1- sokoban-level) sokoban-level-data)
 	sokoban-targets 0)
-  (loop for y from 0 to (1- sokoban-height) do
-    (loop for x from 0 to (1- sokoban-width) do
+  (dotimes (y sokoban-height)
+    (dotimes (x sokoban-width)
       (let ((c (aref (aref sokoban-level-map y) x)))
 	(cond
 	 ((= c sokoban-target)
@@ -486,7 +489,7 @@ static char * player_xpm[] = {
 
 (defun sokoban-get-floor (x y)
   (let ((c (aref (aref sokoban-level-map y) x)))
-    (if (or (= c sokoban-target) 
+    (if (or (= c sokoban-target)
 	    (= c sokoban-block-on-target))
 	sokoban-target
       sokoban-floor)))
@@ -495,8 +498,8 @@ static char * player_xpm[] = {
   (gamegrid-init-buffer sokoban-buffer-width
 			sokoban-buffer-height
 			?\040)
-  (loop for y from 0 to (1- sokoban-height) do
-    (loop for x from 0 to (1- sokoban-width) do
+  (dotimes (y sokoban-height)
+    (dotimes (x sokoban-width)
       (let ((c (aref (aref sokoban-level-map y) x)))
 	(if (= c sokoban-player)
 	    (setq sokoban-x x
@@ -511,10 +514,10 @@ static char * player_xpm[] = {
 			 (format "Done:   %d/%d"
 				 sokoban-done
 				 sokoban-targets))))
-    (loop for y from 0 to 1 do
+    (dotimes (y 2)
       (let* ((string (aref strings y))
 	     (len (length string)))
-	(loop for x from 0 to (1- len) do
+	(dotimes (x len)
 	  (gamegrid-set-cell (+ sokoban-score-x x)
 			     (+ sokoban-score-y y)
 			     (aref string x))))))
@@ -525,27 +528,26 @@ static char * player_xpm[] = {
   (force-mode-line-update))
 
 (defun sokoban-add-move (dx dy)
-  (setq sokoban-undo-list
-	(cons (list 'move dx dy) sokoban-undo-list))
+  (push (list 'move dx dy) sokoban-undo-list)
   (incf sokoban-moves)
   (sokoban-draw-score))
 
 (defun sokoban-add-push (dx dy)
-  (setq sokoban-undo-list
-	(cons (list 'push dx dy) sokoban-undo-list))
+  (push (list 'push dx dy) sokoban-undo-list)
   (incf sokoban-moves)
   (incf sokoban-pushes)
   (sokoban-draw-score))
 
 (defun sokoban-undo ()
+  "Undo previous Sokoban change."
   (interactive)
+  ;; FIXME: Use the normal undo (via `apply' undo entries).
   (if (null sokoban-undo-list)
       (message "Nothing to undo")
-    (let* ((entry (car sokoban-undo-list))
+    (let* ((entry (pop sokoban-undo-list))
 	   (type (car entry))
-	   (dx (cadr entry))
-	   (dy (caddr entry)))
-      (setq sokoban-undo-list (cdr sokoban-undo-list))
+	   (dx (nth 1 entry))
+	   (dy (nth 2 entry)))
       (cond ((eq type 'push)
 	     (let* ((x (+ sokoban-x dx))
 		    (y (+ sokoban-y dy))
@@ -626,11 +628,13 @@ static char * player_xpm[] = {
       (floor y (/ 32.0 (frame-char-height))))))
 
 (defun sokoban-mouse-event-start (event)
+  "Record the beginning of a mouse click."
   (interactive "e")
   (setq sokoban-mouse-x (sokoban-event-x event))
   (setq sokoban-mouse-y (sokoban-event-y event)))
 
 (defun sokoban-mouse-event-end (event)
+  "Move according to the clicked position."
   (interactive "e")
   (let* ((x (sokoban-event-x event))
 	 (y (sokoban-event-y event))
@@ -662,27 +666,27 @@ static char * player_xpm[] = {
 	(setq dy (1+ dy)))))))
 
 (defun sokoban-move-left ()
-  "Move one square left"
+  "Move one square left."
   (interactive)
   (sokoban-move -1 0))
 
 (defun sokoban-move-right ()
-  "Move one square right"
+  "Move one square right."
   (interactive)
   (sokoban-move 1 0))
 
 (defun sokoban-move-up ()
-  "Move one square up"
+  "Move one square up."
   (interactive)
   (sokoban-move 0 -1))
 
 (defun sokoban-move-down ()
-  "Move one square down"
+  "Move one square down."
   (interactive)
   (sokoban-move 0 1))
 
 (defun sokoban-restart-level ()
-  "Restarts the current level"
+  "Restart the current level."
   (interactive)
   (setq sokoban-moves 0
 	sokoban-pushes 0
@@ -697,18 +701,18 @@ static char * player_xpm[] = {
   (sokoban-restart-level))
 
 (defun sokoban-goto-level (level)
-  "Jumps to a specified level"
+  "Jump to a specified LEVEL."
   (interactive "nLevel: ")
-  (while (or (<= level 0)
-	     (> level (length sokoban-level-data)))
-    (setq level
-	  (signal 'args-out-of-range
-		  (list "No such level number" level 1 88))))
+  (when (or (< level 1)
+            (> level (length sokoban-level-data)))
+    (signal 'args-out-of-range
+            (list "No such level number"
+                  level 1 (> level (length sokoban-level-data)))))
   (setq sokoban-level level)
   (sokoban-restart-level))
 
 (defun sokoban-start-game ()
-  "Starts a new game of Sokoban"
+  "Start a new game of Sokoban."
   (interactive)
   (setq sokoban-level 0)
   (sokoban-next-level))
@@ -723,18 +727,11 @@ static char * player_xpm[] = {
       ["Go to specific level" sokoban-goto-level]))
   (define-key sokoban-mode-map [down-mouse-3] sokoban-popup-menu))
 
-(defun sokoban-mode ()
+(define-derived-mode sokoban-mode special-mode "Sokoban"
   "A mode for playing Sokoban.
 
 sokoban-mode keybindings:
-   \\{sokoban-mode-map}
-"
-  (kill-all-local-variables)
-
-  (use-local-map sokoban-mode-map)
-
-  (setq major-mode 'sokoban-mode)
-  (setq mode-name "Sokoban")
+   \\{sokoban-mode-map}"
 
   (when (featurep 'xemacs)
     (setq mode-popup-menu
@@ -743,20 +740,18 @@ sokoban-mode keybindings:
             ["Start new game" sokoban-start-game]
             ["Go to specific level" sokoban-goto-level])))
 
-  (setq gamegrid-use-glyphs sokoban-use-glyphs)
-  (setq gamegrid-use-color sokoban-use-color)
-  (setq gamegrid-font sokoban-font)
+  (set (make-local-variable 'gamegrid-use-glyphs) sokoban-use-glyphs)
+  (set (make-local-variable 'gamegrid-use-color) sokoban-use-color)
+  (set (make-local-variable 'gamegrid-font) sokoban-font)
 
   (gamegrid-init (sokoban-display-options))
 
   (if (null sokoban-level-data)
-      (sokoban-init-level-data))
-
-  (run-hooks 'sokoban-mode-hook))
+      (sokoban-init-level-data)))
 
 ;;;###autoload
 (defun sokoban ()
-  "Sokoban
+  "Sokoban.
 
 Push the blocks onto the target squares.
 
@@ -768,9 +763,7 @@ sokoban-mode keybindings:
 \\[sokoban-move-left]	Move one square to the left
 \\[sokoban-move-right]	Move one square to the right
 \\[sokoban-move-up]	Move one square up
-\\[sokoban-move-down]	Move one square down
-
-"
+\\[sokoban-move-down]	Move one square down"
   (interactive)
 
   (switch-to-buffer sokoban-buffer-name)
